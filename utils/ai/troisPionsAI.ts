@@ -1,0 +1,216 @@
+import { Player, Difficulty, TroisPionsBoardState } from '../../types';
+import {
+  checkTroisPionsWin,
+  getEmptyPositions,
+  TROIS_PIONS_WIN_LINES,
+  TROIS_PIONS_ADJACENCY,
+} from '../gameHelpers';
+
+// Get valid moves for 3 Pions (movement phase)
+function getValidMoves(
+  board: TroisPionsBoardState,
+  player: Player
+): Array<{ from: number; to: number }> {
+  const moves: Array<{ from: number; to: number }> = [];
+  board.forEach((cell, from) => {
+    if (cell === player) {
+      TROIS_PIONS_ADJACENCY[from].forEach((to) => {
+        if (board[to] === null) {
+          moves.push({ from, to });
+        }
+      });
+    }
+  });
+  return moves;
+}
+
+// Evaluate board for minimax
+function evaluateBoard(
+  board: TroisPionsBoardState,
+  aiPlayer: Player
+): number {
+  const humanPlayer: Player = aiPlayer === 1 ? 2 : 1;
+
+  if (checkTroisPionsWin(board, aiPlayer)) return 100;
+  if (checkTroisPionsWin(board, humanPlayer)) return -100;
+
+  let score = 0;
+
+  // Count lines where AI has 2 pieces and 3rd is empty
+  for (const line of TROIS_PIONS_WIN_LINES) {
+    const aiCount = line.filter((pos) => board[pos] === aiPlayer).length;
+    const emptyCount = line.filter((pos) => board[pos] === null).length;
+    if (aiCount === 2 && emptyCount === 1) {
+      score += 5;
+    }
+
+    const humanCount = line.filter((pos) => board[pos] === humanPlayer).length;
+    if (humanCount === 2 && emptyCount === 1) {
+      score -= 5;
+    }
+  }
+
+  // Bonus for center
+  if (board[4] === aiPlayer) {
+    score += 2;
+  }
+
+  return score;
+}
+
+// Easy: Random move
+export function getEasyMove(
+  board: TroisPionsBoardState,
+  phase: 'placement' | 'movement',
+  player: Player
+): { type: 'place'; position: number } | { type: 'move'; from: number; to: number } {
+  if (phase === 'placement') {
+    const emptyPositions = getEmptyPositions(board);
+    const randomIndex = Math.floor(Math.random() * emptyPositions.length);
+    return { type: 'place', position: emptyPositions[randomIndex] };
+  } else {
+    const moves = getValidMoves(board, player);
+    if (moves.length === 0) {
+      // No valid moves - stalemate
+      return { type: 'place', position: -1 };
+    }
+    const randomIndex = Math.floor(Math.random() * moves.length);
+    const move = moves[randomIndex];
+    return { type: 'move', from: move.from, to: move.to };
+  }
+}
+
+// Medium: Heuristic-based
+export function getMediumMove(
+  board: TroisPionsBoardState,
+  phase: 'placement' | 'movement',
+  aiPlayer: Player
+): { type: 'place'; position: number } | { type: 'move'; from: number; to: number } {
+  const humanPlayer: Player = aiPlayer === 1 ? 2 : 1;
+
+  if (phase === 'placement') {
+    const emptyPositions = getEmptyPositions(board);
+
+    // 1. Win if possible
+    for (const pos of emptyPositions) {
+      const testBoard = [...board] as TroisPionsBoardState;
+      testBoard[pos] = aiPlayer;
+      if (checkTroisPionsWin(testBoard, aiPlayer)) {
+        return { type: 'place', position: pos };
+      }
+    }
+
+    // 2. Block opponent win
+    for (const pos of emptyPositions) {
+      const testBoard = [...board] as TroisPionsBoardState;
+      testBoard[pos] = humanPlayer;
+      if (checkTroisPionsWin(testBoard, humanPlayer)) {
+        return { type: 'place', position: pos };
+      }
+    }
+
+    // 3. Take center if available
+    if (board[4] === null) {
+      return { type: 'place', position: 4 };
+    }
+
+    // 4. Random
+    const randomIndex = Math.floor(Math.random() * emptyPositions.length);
+    return { type: 'place', position: emptyPositions[randomIndex] };
+  } else {
+    const moves = getValidMoves(board, aiPlayer);
+
+    // 1. Win immediately
+    for (const move of moves) {
+      const testBoard = [...board] as TroisPionsBoardState;
+      testBoard[move.to] = aiPlayer;
+      testBoard[move.from] = null;
+      if (checkTroisPionsWin(testBoard, aiPlayer)) {
+        return { type: 'move', from: move.from, to: move.to };
+      }
+    }
+
+    // 2. Block opponent win
+    for (const move of moves) {
+      const testBoard = [...board] as TroisPionsBoardState;
+      testBoard[move.to] = aiPlayer;
+      testBoard[move.from] = null;
+      // Check if opponent would win after our move
+      const opponentMoves = getValidMoves(testBoard, humanPlayer);
+      for (const oppMove of opponentMoves) {
+        const oppTestBoard = [...testBoard] as TroisPionsBoardState;
+        oppTestBoard[oppMove.to] = humanPlayer;
+        oppTestBoard[oppMove.from] = null;
+        if (checkTroisPionsWin(oppTestBoard, humanPlayer)) {
+          return { type: 'move', from: move.from, to: move.to };
+        }
+      }
+    }
+
+    if (moves.length === 0) {
+      return { type: 'place', position: -1 };
+    }
+
+    // 3. Random
+    const randomIndex = Math.floor(Math.random() * moves.length);
+    const move = moves[randomIndex];
+    return { type: 'move', from: move.from, to: move.to };
+  }
+}
+
+// Main export function - getAIMove
+export function getAIMove(
+  board: TroisPionsBoardState,
+  difficulty: Difficulty,
+  aiPlayer: Player
+): number {
+  // Determine phase based on board state
+  const playerCount = board.filter((p) => p === aiPlayer).length;
+  const phase: 'placement' | 'movement' = playerCount >= 3 ? 'movement' : 'placement';
+
+  switch (difficulty) {
+    case 'easy':
+      const easyMove = getEasyMove(board, phase, aiPlayer);
+      if (easyMove.type === 'place') return easyMove.position;
+      return easyMove.from; // Fallback
+
+    case 'medium': {
+      const mediumMove = getMediumMove(board, phase, aiPlayer);
+      if (mediumMove.type === 'place') return mediumMove.position;
+      return mediumMove.from; // Fallback
+    }
+
+    case 'hard': {
+      const hardMove = getHardMove(board, aiPlayer, phase);
+      if (hardMove.type === 'place') return hardMove.position;
+      return hardMove.from; // Fallback
+    }
+
+    default:
+      return -1;
+  }
+}
+
+// Alias for backwards compatibility
+export const getTroisPionsAIMove = getAIMove;
+
+// Placeholder for Hard mode - using random for now
+function getHardMove(
+  _board: TroisPionsBoardState,
+  _aiPlayer: Player,
+  _phase: 'placement' | 'movement'
+): { type: 'place'; position: number } | { type: 'move'; from: number; to: number } {
+  return { type: 'place', position: -1 };
+}
+
+// Hard: Minimax with alpha-beta pruning - placeholder
+function minimax(
+  _board: TroisPionsBoardState,
+  _depth: number,
+  _alpha: number,
+  _beta: number,
+  _isMaximizing: boolean,
+  _aiPlayer: Player
+): number {
+  return 0;
+}
