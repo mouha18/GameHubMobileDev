@@ -4,7 +4,7 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
+  withTiming,
 } from 'react-native-reanimated';
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../constants/theme';
 
@@ -20,18 +20,16 @@ const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
 export function Card({ title, category, icon, onPress }: CardProps) {
   const scale = useSharedValue(1);
 
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scale.value }],
-    };
-  });
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
 
   const handlePressIn = () => {
-    scale.value = withSpring(0.96, { damping: 15 });
+    scale.value = withTiming(0.98, { duration: 100 });
   };
 
   const handlePressOut = () => {
-    scale.value = withSpring(1, { damping: 15 });
+    scale.value = withTiming(1, { duration: 150 });
   };
 
   return (
@@ -42,47 +40,84 @@ export function Card({ title, category, icon, onPress }: CardProps) {
       onPressOut={handlePressOut}
       activeOpacity={1}
     >
-      <View style={styles.iconContainer}>
-        <MaterialCommunityIcons
-          name={icon as any}
-          size={48}
-          color={COLORS.textPrimary}
-        />
+      <View style={styles.content}>
+        <View style={styles.iconContainer}>
+          <View style={styles.iconBackground}>
+            <MaterialCommunityIcons
+              name={icon as any}
+              size={44}
+              color={COLORS.textPrimary}
+            />
+          </View>
+        </View>
+        
+        <Text style={styles.title}>{title}</Text>
+        <Text style={styles.category}>{category}</Text>
+        
+        <View style={styles.playIndicator}>
+          <MaterialCommunityIcons
+            name="play-circle"
+            size={20}
+            color={COLORS.accent}
+          />
+          <Text style={styles.playText}>Play</Text>
+        </View>
       </View>
-      <Text style={styles.title}>{title}</Text>
-      <Text style={styles.category}>{category}</Text>
     </AnimatedTouchable>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
+    borderRadius: BORDER_RADIUS.lg,
+    overflow: 'hidden',
+    minHeight: 180,
+  },
+  content: {
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.md,
     alignItems: 'center',
-    justifyContent: 'center',
-    minHeight: 150,
     borderWidth: 1,
     borderColor: COLORS.primary,
+    minHeight: 180,
   },
   iconContainer: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+    marginBottom: SPACING.sm,
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  iconBackground: {
+    width: 72,
+    height: 72,
+    borderRadius: 36,
     backgroundColor: COLORS.primary,
     alignItems: 'center',
     justifyContent: 'center',
-    marginBottom: SPACING.sm,
+    borderWidth: 2,
+    borderColor: COLORS.accent,
   },
   title: {
-    fontSize: FONT_SIZES.md,
+    fontSize: FONT_SIZES.lg,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
     marginBottom: SPACING.xs,
+    textAlign: 'center',
   },
   category: {
     fontSize: FONT_SIZES.sm,
     color: COLORS.textSecondary,
+    marginBottom: SPACING.sm,
+  },
+  playIndicator: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    marginTop: SPACING.xs,
+  },
+  playText: {
+    fontSize: FONT_SIZES.sm,
+    color: COLORS.accent,
+    fontWeight: '600',
   },
 });

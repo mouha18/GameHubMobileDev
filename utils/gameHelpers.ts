@@ -16,16 +16,16 @@ export const TROIS_PIONS_ADJACENCY: number[][] = [
   [4, 5, 7],
 ];
 
-// 3 Pions - Winning lines
+// 3 Pions - Winning lines (for grid layout - rows, columns, diagonals)
 export const TROIS_PIONS_WIN_LINES: number[][] = [
-  [0, 1, 2],
-  [3, 4, 5],
-  [6, 7, 8],
-  [0, 3, 6],
-  [1, 4, 7],
-  [2, 5, 8],
-  [0, 4, 8],
-  [2, 4, 6],
+  [0, 1, 2],   // top row
+  [3, 4, 5],   // middle row
+  [6, 7, 8],   // bottom row
+  [0, 3, 6],   // left column
+  [1, 4, 7],   // center column
+  [2, 5, 8],   // right column
+  [0, 4, 8],   // main diagonal
+  [2, 4, 6],   // anti-diagonal
 ];
 
 // Tic Tac Toe - Winning lines
@@ -70,4 +70,31 @@ export function getEmptyPositions(board: (1 | 2 | null)[]): number[] {
   return board
     .map((cell, index) => (cell === null ? index : -1))
     .filter((index) => index !== -1);
+}
+
+// Check for stalemate in 3 Pions (movement phase)
+export function checkTroisPionsStalemate(
+  board: (1 | 2 | null)[],
+  player: 1 | 2
+): boolean {
+  // Get all valid moves for the player
+  const playerPieces = board
+    .map((cell, index) => (cell === player ? index : -1))
+    .filter((index) => index !== -1);
+  
+  // If player has no pieces, it's not a stalemate (they lost)
+  if (playerPieces.length === 0) return false;
+  
+  // Check if any piece can move
+  for (const from of playerPieces) {
+    const adjacentPositions = TROIS_PIONS_ADJACENCY[from];
+    for (const to of adjacentPositions) {
+      if (board[to] === null) {
+        return false; // At least one valid move exists
+      }
+    }
+  }
+  
+  // No valid moves found - stalemate
+  return true;
 }

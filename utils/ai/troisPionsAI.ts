@@ -194,23 +194,176 @@ export function getAIMove(
 // Alias for backwards compatibility
 export const getTroisPionsAIMove = getAIMove;
 
-// Placeholder for Hard mode - using random for now
+// Hard: Minimax with alpha-beta pruning - properly implemented
 function getHardMove(
-  _board: TroisPionsBoardState,
-  _aiPlayer: Player,
-  _phase: 'placement' | 'movement'
+  board: TroisPionsBoardState,
+  aiPlayer: Player,
+  phase: 'placement' | 'movement'
 ): { type: 'place'; position: number } | { type: 'move'; from: number; to: number } {
-  return { type: 'place', position: -1 };
+  const humanPlayer: Player = aiPlayer === 1 ? 2 : 1;
+  
+  if (phase === 'placement') {
+    const emptyPositions = getEmptyPositions(board);
+    let bestScore = -Infinity;
+    let bestPosition = emptyPositions[0];
+    
+    for (const pos of emptyPositions) {
+      const testBoard = [...board] as TroisPionsBoardState;
+      testBoard[pos] = aiPlayer;
+      const score = minimax(testBoard, 3, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      if (score > bestScore) {
+        bestScore = score;
+        bestPosition = pos;
+      }
+    }
+    
+    return { type: 'place', position: bestPosition };
+  } else {
+    const moves = getValidMoves(board, aiPlayer);
+    if (moves.length === 0) {
+      return { type: 'place', position: -1 };
+    }
+    
+    let bestScore = -Infinity;
+    let bestMove = moves[0];
+    
+    for (const move of moves) {
+      const testBoard = [...board] as TroisPionsBoardState;
+      testBoard[move.to] = testBoard[move.from];
+      testBoard[move.from] = null;
+      const score = minimax(testBoard, 3, -Infinity, Infinity, false, aiPlayer, humanPlayer);
+      if (score > bestScore) {
+        bestScore = score;
+        bestMove = move;
+      }
+    }
+    
+    return { type: 'move', from: bestMove.from, to: bestMove.to };
+  }
 }
 
-// Hard: Minimax with alpha-beta pruning - placeholder
+// Minimax with alpha-beta pruning for 3 Pions
 function minimax(
-  _board: TroisPionsBoardState,
-  _depth: number,
-  _alpha: number,
-  _beta: number,
-  _isMaximizing: boolean,
-  _aiPlayer: Player
+  board: TroisPionsBoardState,
+  depth: number,
+  alpha: number,
+  beta: number,
+  isMaximizing: boolean,
+  aiPlayer: Player,
+  humanPlayer: Player
 ): number {
-  return 0;
+  const currentPlayer = isMaximizing ? aiPlayer : humanPlayer;
+  
+  // Check terminal states
+  if (checkTroisPionsWin(board, aiPlayer)) return 100 + depth; // Prefer faster wins
+  if (checkTroisPionsWin(board, humanPlayer)) return -100 - depth; // Prefer slower losses
+  
+  if (depth === 0) {
+    return evaluateBoardForMinimax(board, aiPlayer, humanPlayer);
+  }
+  
+  // Determine phase based on pieces placed
+  const playerCount = board.filter((p) => p === currentPlayer).length;
+  const phase: 'placement' | 'movement' = playerCount >= 3 ? 'movement' : 'placement';
+  
+  if (isMaximizing) {
+    let maxEval = -Infinity;
+    
+    if (phase === 'placement') {
+      const emptyPositions = getEmptyPositions(board);
+      for (const pos of emptyPositions) {
+        const testBoard = [...board] as TroisPionsBoardState;
+        testBoard[pos] = aiPlayer;
+        const evaluation = minimax(testBoard, depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
+        maxEval = Math.max(maxEval, evaluation);
+        alpha = Math.max(alpha, evaluation);
+        if (beta <= alpha) break;
+      }
+    } else {
+      const moves = getValidMoves(board, aiPlayer);
+      if (moves.length === 0) {
+        // No moves available - stalemate
+        return evaluateBoardForMinimax(board, aiPlayer, humanPlayer);
+      }
+      for (const move of moves) {
+        const testBoard = [...board] as TroisPionsBoardState;
+        testBoard[move.to] = testBoard[move.from];
+        testBoard[move.from] = null;
+        const evaluation = minimax(testBoard, depth - 1, alpha, beta, false, aiPlayer, humanPlayer);
+        maxEval = Math.max(maxEval, evaluation);
+        alpha = Math.max(alpha, evaluation);
+        if (beta <= alpha) break;
+      }
+    }
+    
+    return maxEval;
+  } else {
+    let minEval = Infinity;
+    
+    if (phase === 'placement') {
+      const emptyPositions = getEmptyPositions(board);
+      for (const pos of emptyPositions) {
+        const testBoard = [...board] as TroisPionsBoardState;
+        testBoard[pos] = humanPlayer;
+        const evaluation = minimax(testBoard, depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
+        minEval = Math.min(minEval, evaluation);
+        beta = Math.min(beta, evaluation);
+        if (beta <= alpha) break;
+      }
+    } else {
+      const moves = getValidMoves(board, humanPlayer);
+      if (moves.length === 0) {
+        // No moves available - stalemate
+        return evaluateBoardForMinimax(board, aiPlayer, humanPlayer);
+      }
+      for (const move of moves) {
+        const testBoard = [...board] as TroisPionsBoardState;
+        testBoard[move.to] = testBoard[move.from];
+        testBoard[move.from] = null;
+        const evaluation = minimax(testBoard, depth - 1, alpha, beta, true, aiPlayer, humanPlayer);
+        minEval = Math.min(minEval, evaluation);
+        beta = Math.min(beta, evaluation);
+        if (beta <= alpha) break;
+      }
+    }
+    
+    return minEval;
+  }
+}
+
+// Evaluate board state for minimax
+function evaluateBoardForMinimax(
+  board: TroisPionsBoardState,
+  aiPlayer: Player,
+  humanPlayer: Player
+): number {
+  let score = 0;
+  
+  // Count lines where AI has 2 pieces and 3rd is empty (potential win)
+  for (const line of TROIS_PIONS_WIN_LINES) {
+    const aiCount = line.filter((pos) => board[pos] === aiPlayer).length;
+    const humanCount = line.filter((pos) => board[pos] === humanPlayer).length;
+    const emptyCount = line.filter((pos) => board[pos] === null).length;
+    
+    if (aiCount === 2 && emptyCount === 1) {
+      score += 5;
+    }
+    if (humanCount === 2 && emptyCount === 1) {
+      score -= 5;
+    }
+  }
+  
+  // Bonus for center position
+  if (board[4] === aiPlayer) {
+    score += 2;
+  } else if (board[4] === humanPlayer) {
+    score -= 2;
+  }
+  
+  // Count pieces on board
+  const aiPieces = board.filter((p) => p === aiPlayer).length;
+  const humanPieces = board.filter((p) => p === humanPlayer).length;
+  score += (aiPieces - humanPieces) * 0.5;
+  
+  return score;
 }

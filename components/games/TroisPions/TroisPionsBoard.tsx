@@ -14,36 +14,30 @@ interface TroisPionsBoardProps {
 
 const BOARD_SIZE = Math.min(Dimensions.get('window').width - 32, 300);
 const POSITION_SIZE = 40;
+const PADDING = 8;
+const INNER_SIZE = BOARD_SIZE - (PADDING * 2);
 
-// Position coordinates (as percentage of board size)
-const POSITIONS = [
-  { x: 0.1, y: 0.1 }, // 0: Top-Left
-  { x: 0.5, y: 0.1 }, // 1: Top-Middle
-  { x: 0.9, y: 0.1 }, // 2: Top-Right
-  { x: 0.1, y: 0.5 }, // 3: Middle-Left
-  { x: 0.5, y: 0.5 }, // 4: Center
-  { x: 0.9, y: 0.5 }, // 5: Middle-Right
-  { x: 0.1, y: 0.9 }, // 6: Bottom-Left
-  { x: 0.5, y: 0.9 }, // 7: Bottom-Middle
-  { x: 0.9, y: 0.9 }, // 8: Bottom-Right
+// Grid-based position coordinates for 9-point graph
+const GRID_POSITIONS = [
+  { x: 0, y: 0 }, { x: 0.5, y: 0 }, { x: 1, y: 0 },
+  { x: 0, y: 0.5 }, { x: 0.5, y: 0.5 }, { x: 1, y: 0.5 },
+  { x: 0, y: 1 }, { x: 0.5, y: 1 }, { x: 1, y: 1 }
 ];
 
-// Lines connecting positions
+// Connecting lines between positions (adjacency map)
+// Horizontal lines: 0-1, 1-2, 3-4, 4-5, 6-7, 7-8
+// Vertical lines: 0-3, 3-6, 1-4, 4-7, 2-5, 5-8
+// Diagonal lines: 0-4, 4-8, 2-4, 4-6, 1-5, 3-7
 const LINES: [number, number][] = [
-  [0, 1], [1, 2],
-  [3, 4], [4, 5],
-  [6, 7],
-  [0, 3], [3, 6],
-  [1, 4], [4, 7],
-  [2, 5], [5, 8],
-  [0, 4], [4, 6],
-  [2, 4], [4, 8],
+  [0, 1], [1, 2],       // Top row
+  [3, 4], [4, 5],       // Middle row
+  [6, 7], [7, 8],       // Bottom row
+  [0, 3], [3, 6],       // Left column
+  [1, 4], [4, 7],       // Center column
+  [2, 5], [5, 8],       // Right column
+  [0, 4], [4, 8],       // Main diagonal
+  [2, 4], [4, 6],       // Anti-diagonal
 ];
-
-interface LineProps {
-  start: { x: number; y: number };
-  end: { x: number; y: number };
-}
 
 // Helper to calculate line properties
 function getLineStyle(start: { x: number; y: number }, end: { x: number; y: number }): {
@@ -51,31 +45,37 @@ function getLineStyle(start: { x: number; y: number }, end: { x: number; y: numb
   top: number;
   width: number;
   height: number;
-  transform: { rotate: string }[];
+  rotate: number;
 } {
-  // Calculate center positions (add half of position size)
-  const startX = start.x * BOARD_SIZE + POSITION_SIZE / 2;
-  const startY = start.y * BOARD_SIZE + POSITION_SIZE / 2;
-  const endX = end.x * BOARD_SIZE + POSITION_SIZE / 2;
-  const endY = end.y * BOARD_SIZE + POSITION_SIZE / 2;
+  const STEP = INNER_SIZE - POSITION_SIZE;
+  const startX = PADDING + start.x * STEP + POSITION_SIZE / 2;
+  const startY = PADDING + start.y * STEP + POSITION_SIZE / 2;
+  const endX   = PADDING + end.x   * STEP + POSITION_SIZE / 2;
+  const endY   = PADDING + end.y   * STEP + POSITION_SIZE / 2;
 
+  // Calculate midpoint between start and end
+  const midX = (startX + endX) / 2;
+  const midY = (startY + endY) / 2;
+  
+  // Calculate line length and angle
   const dx = endX - startX;
   const dy = endY - startY;
   const length = Math.sqrt(dx * dx + dy * dy);
   const angle = Math.atan2(dy, dx) * (180 / Math.PI);
 
+  // Position at midpoint, offset by half dimensions so rotation is centered
   return {
-    left: startX,
-    top: startY,
+    left: midX - length / 2,
+    top: midY - 1.5, // Half of line height (3/2 = 1.5)
     width: length,
     height: 3,
-    transform: [{ rotate: `${angle}deg` }],
+    rotate: angle,
   };
 }
 
 function renderLine(line: [number, number], index: number): React.ReactNode {
-  const start = POSITIONS[line[0]];
-  const end = POSITIONS[line[1]];
+  const start = GRID_POSITIONS[line[0]];
+  const end = GRID_POSITIONS[line[1]];
   const lineStyle = getLineStyle(start, end);
 
   return (
@@ -84,11 +84,11 @@ function renderLine(line: [number, number], index: number): React.ReactNode {
       style={[
         styles.line,
         {
-          left: lineStyle.left - 1.5,
-          top: lineStyle.top - 1.5,
+          left: lineStyle.left,
+          top: lineStyle.top,
           width: lineStyle.width,
           height: lineStyle.height,
-          transform: lineStyle.transform,
+          transform: [{ rotate: `${lineStyle.rotate}deg` }],
         },
       ]}
     />
@@ -101,10 +101,12 @@ export function TroisPionsBoard({
   validMoves,
   onPositionPress,
   disabled,
-  phase,
+  phase: _phase,
 }: TroisPionsBoardProps) {
+  const STEP = INNER_SIZE - POSITION_SIZE;
+  
   const renderPosition = (index: number) => {
-    const pos = POSITIONS[index];
+    const pos = GRID_POSITIONS[index];
     const value = board[index];
     const isSelected = selectedPosition === index;
     const isValidMove = validMoves.includes(index);
@@ -120,16 +122,16 @@ export function TroisPionsBoard({
         style={[
           styles.position,
           {
-            left: pos.x * BOARD_SIZE - POSITION_SIZE / 2,
-            top: pos.y * BOARD_SIZE - POSITION_SIZE / 2,
+            left: PADDING + pos.x * STEP,
+            top:  PADDING + pos.y * STEP,
           },
           isSelected && styles.selectedPosition,
           isValidMove && !isEmpty && styles.invalidPosition,
         ]}
         onPress={() => !disabled && onPositionPress(index)}
-        disabled={disabled || (phase === 'movement' && !isEmpty && value !== board[selectedPosition ?? -1])}
+        disabled={disabled}
       >
-        {isValidMove && isEmpty && phase === 'movement' && (
+        {isValidMove && isEmpty && (
           <View style={styles.validMoveIndicator} />
         )}
         {pieceColor && (
@@ -150,10 +152,10 @@ export function TroisPionsBoard({
 
   return (
     <View style={styles.container}>
-      {/* Render positions first (below lines) */}
-      {POSITIONS.map((_, index) => renderPosition(index))}
-      {/* Render board lines on top */}
+      {/* Render board lines first (below positions) */}
       {LINES.map((line, index) => renderLine(line, index))}
+      {/* Render positions on top */}
+      {GRID_POSITIONS.map((_, index) => renderPosition(index))}
     </View>
   );
 }
@@ -163,10 +165,14 @@ const styles = StyleSheet.create({
     width: BOARD_SIZE,
     height: BOARD_SIZE,
     position: 'relative',
+    backgroundColor: COLORS.surface,
+    borderRadius: 16,
+    padding: PADDING,
+    alignSelf: 'center',
   },
   line: {
     position: 'absolute',
-    backgroundColor: COLORS.boardLine,
+    backgroundColor: COLORS.textSecondary,
     zIndex: 1,
   },
   position: {
@@ -204,10 +210,10 @@ const styles = StyleSheet.create({
   },
   validMoveIndicator: {
     position: 'absolute',
-    width: 20,
-    height: 20,
-    borderRadius: 10,
+    width: 16,
+    height: 16,
+    borderRadius: 8,
     backgroundColor: COLORS.success,
-    opacity: 0.5,
+    opacity: 0.6,
   },
 });

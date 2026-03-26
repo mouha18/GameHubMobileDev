@@ -9,7 +9,6 @@ import { MenuModal, GameOverModal } from '../../../components/ui/Modal';
 import { TicTacToeBoard } from '../../../components/games/TicTacToe/TicTacToeBoard';
 import { TroisPionsBoard } from '../../../components/games/TroisPions/TroisPionsBoard';
 import { CheckersBoard } from '../../../components/games/Checkers/CheckersBoard';
-import { ChessBoard } from '../../../components/games/Chess/ChessBoard';
 import { getGameMeta } from '../../../constants/games';
 import { COLORS, FONT_SIZES, SPACING } from '../../../constants/theme';
 import {
@@ -19,21 +18,20 @@ import {
   Player,
   TicTacToeState,
   TroisPionsState,
+  TroisPionsBoardState,
   CheckersState,
-  ChessState,
   CheckersMove,
-  ChessMove,
 } from '../../../types';
 import { useGameStore } from '../../../store/gameStore';
 import { getAIMove as getTTT_AIMove } from '../../../utils/ai/ticTacToeAI';
 import { getAIMove as getTroisPionsAIMove } from '../../../utils/ai/troisPionsAI';
 import { getAICheckersMove, getCheckersValidMoves, getJumpsForPiece } from '../../../utils/ai/checkersAI';
-import { getAIChessMove, getChessValidMoves, createInitialChessBoard } from '../../../utils/ai/chessAI';
 import {
   checkTTTWin,
   checkTTTDraw,
   checkTroisPionsWin,
   TROIS_PIONS_ADJACENCY,
+  checkTroisPionsStalemate,
 } from '../../../utils/gameHelpers';
 
 // Initialize game states
@@ -47,11 +45,11 @@ function createInitialTicTacToeState(): TicTacToeState {
   };
 }
 
-function createInitialTroisPionsState(): TroisPionsState {
+function createInitialTroisPionsState(firstPlayer: Player = 1): TroisPionsState {
   return {
     board: Array(9).fill(null),
     phase: 'placement',
-    currentPlayer: 1,
+    currentPlayer: firstPlayer,
     piecesPlaced: { 1: 0, 2: 0 },
     selectedPosition: null,
     round: 1,
@@ -61,7 +59,7 @@ function createInitialTroisPionsState(): TroisPionsState {
   };
 }
 
-function createInitialCheckersState(): CheckersState {
+function createInitialCheckersState(firstPlayer: Player = 1): CheckersState {
   const board = Array(8)
     .fill(null)
     .map(() => Array(8).fill(null));
@@ -77,28 +75,11 @@ function createInitialCheckersState(): CheckersState {
 
   return {
     board,
-    currentPlayer: 1,
+    currentPlayer: firstPlayer,
     selectedSquare: null,
     validMoves: [],
     mustJump: false,
     jumpChain: [],
-    status: 'playing',
-    winner: null,
-  };
-}
-
-function createInitialChessState(): ChessState {
-  return {
-    board: createInitialChessBoard(),
-    currentPlayer: 1,
-    selectedSquare: null,
-    validMoves: [],
-    enPassantTarget: null,
-    castlingRights: {
-      1: { kingSide: true, queenSide: true },
-      2: { kingSide: true, queenSide: true },
-    },
-    isCheck: false,
     status: 'playing',
     winner: null,
   };
@@ -111,6 +92,7 @@ export default function GamePlayScreen() {
   const game = getGameMeta(gameId as GameId);
   const config = useGameStore((state) => state.config);
   const players = useGameStore((state) => state.players);
+  const incrementScore = useGameStore((state) => state.incrementScore);
 
   const [menuVisible, setMenuVisible] = useState(false);
   const [gameOverVisible, setGameOverVisible] = useState(false);
@@ -119,16 +101,23 @@ export default function GamePlayScreen() {
   const checkersRules = (routeCheckersRules as 'american' | 'international') || 'american';
   const captureRequired = routeCaptureRequired !== 'false';
 
-  // Game states
-  const [tttState, setTttState] = useState<TicTacToeState>(createInitialTicTacToeState);
-  const [troisPionsState, setTroisPionsState] = useState<TroisPionsState>(createInitialTroisPionsState);
-  const [checkersState, setCheckersState] = useState<CheckersState>(createInitialCheckersState);
-  const [chessState, setChessState] = useState<ChessState>(createInitialChessState);
-
   const isPvC = routeMode === 'pvc';
   const difficulty = (routeDifficulty as Difficulty) || 'medium';
   const humanPlayer = routePlayerSide ? Number(routePlayerSide) as Player : 1;
   const aiPlayer: Player = humanPlayer === 1 ? 2 : 1;
+
+  // Game states - initialize after humanPlayer is defined
+  const [tttState, setTttState] = useState<TicTacToeState>(createInitialTicTacToeState);
+  const [troisPionsState, setTroisPionsState] = useState<TroisPionsState>(() => {
+    // If human chooses to play as Player 2 (go second), AI (Player 1) should go first
+    const firstPlayer = humanPlayer === 2 ? 1 : humanPlayer;
+    return createInitialTroisPionsState(firstPlayer);
+  });
+  const [checkersState, setCheckersState] = useState<CheckersState>(() => {
+    // If human chooses to play as Player 2 (go second), AI (Player 1) should go first
+    const firstPlayer = humanPlayer === 2 ? 1 : humanPlayer;
+    return createInitialCheckersState(firstPlayer);
+  });
 
   const getCurrentState = () => {
     switch (gameId) {
@@ -138,8 +127,6 @@ export default function GamePlayScreen() {
         return troisPionsState;
       case 'checkers':
         return checkersState;
-      case 'chess':
-        return chessState;
       default:
         return tttState;
     }
@@ -153,8 +140,6 @@ export default function GamePlayScreen() {
         return troisPionsState.currentPlayer;
       case 'checkers':
         return checkersState.currentPlayer;
-      case 'chess':
-        return chessState.currentPlayer;
       default:
         return 1;
     }
@@ -165,11 +150,13 @@ export default function GamePlayScreen() {
   // Reset game
   const resetGame = useCallback(() => {
     setTttState(createInitialTicTacToeState());
-    setTroisPionsState(createInitialTroisPionsState());
-    setCheckersState(createInitialCheckersState());
-    setChessState(createInitialChessState());
+    // For 3 Pions and Checkers: If human chooses to play as Player 2 (go second), AI (Player 1) should go first
+    // For TicTacToe: Always starts with Player 1
+    const firstPlayer = humanPlayer === 2 ? 1 : humanPlayer;
+    setTroisPionsState(createInitialTroisPionsState(firstPlayer));
+    setCheckersState(createInitialCheckersState(firstPlayer));
     setGameOverVisible(false);
-  }, []);
+  }, [humanPlayer]);
 
   // Go home
   const goHome = useCallback(() => {
@@ -190,9 +177,6 @@ export default function GamePlayScreen() {
           break;
         case 'checkers':
           handleCheckersAIMove();
-          break;
-        case 'chess':
-          handleChessAIMove();
           break;
       }
     }, 600);
@@ -227,7 +211,7 @@ export default function GamePlayScreen() {
 
       setTttState({
         board: newBoard,
-        currentPlayer: 1,
+        currentPlayer: humanPlayer,
         status: winner || isDraw ? 'finished' : 'playing',
         winner: winner || (isDraw ? 'draw' : null),
         winningLine,
@@ -235,6 +219,9 @@ export default function GamePlayScreen() {
 
       if (winner || isDraw) {
         setGameOverVisible(true);
+        if (winner) {
+          incrementScore(winner);
+        }
       }
     }
   };
@@ -242,22 +229,22 @@ export default function GamePlayScreen() {
   // 3 Pions AI Move
   const handleTroisPionsAIMove = () => {
     const state = troisPionsState;
-    let newBoard: (Player | null)[];
-
+    
+    // Use proper AI based on difficulty
+    const aiMove = getTroisPionsAIMove(state.board as TroisPionsBoardState, difficulty, aiPlayer);
+    
     if (state.phase === 'placement') {
-      const emptyPositions = state.board
-        .map((p, i) => p === null ? i : -1)
-        .filter(i => i !== -1);
-      if (emptyPositions.length > 0) {
-        const move = emptyPositions[Math.floor(Math.random() * emptyPositions.length)];
-        newBoard = [...state.board];
-        newBoard[move] = aiPlayer;
+      // AI returns a position for placement
+      if (aiMove >= 0) {
+        const newBoard = [...state.board];
+        newBoard[aiMove] = aiPlayer;
         
         const win = checkTroisPionsWin(newBoard, aiPlayer);
         const piecesPlaced = { ...state.piecesPlaced, [aiPlayer]: state.piecesPlaced[aiPlayer] + 1 };
+        const totalPlaced = piecesPlaced[1] + piecesPlaced[2];
         
-        if (win || piecesPlaced[1] + piecesPlaced[2] === 6) {
-          const nextPhase = piecesPlaced[1] + piecesPlaced[2] === 6 ? 'movement' : 'placement';
+        if (win || totalPlaced === 6) {
+          const nextPhase = totalPlaced === 6 && !win ? 'movement' : 'placement';
           const winner = win ? aiPlayer : null;
           
           setTroisPionsState({
@@ -265,52 +252,65 @@ export default function GamePlayScreen() {
             board: newBoard,
             piecesPlaced,
             phase: nextPhase,
-            currentPlayer: 1,
+            currentPlayer: humanPlayer,
             status: winner ? 'finished' : 'playing',
             winner,
           });
           
-          if (winner || nextPhase === 'movement') {
-            if (winner) setGameOverVisible(true);
+          if (winner) {
+            setGameOverVisible(true);
+            incrementScore(winner);
           }
         } else {
           setTroisPionsState({
             ...state,
             board: newBoard,
             piecesPlaced,
-            currentPlayer: 1,
+            currentPlayer: humanPlayer,
           });
         }
       }
     } else {
-      // Movement phase - simple random move
-      const myPieces = state.board
-        .map((p, i) => p === aiPlayer ? i : -1)
-        .filter(i => i !== -1);
-      
-      if (myPieces.length > 0) {
-        const from = myPieces[Math.floor(Math.random() * myPieces.length)];
+      // Movement phase - the AI move is the 'from' position, need to find 'to'
+      // For movement, getTroisPionsAIMove returns the 'from' position
+      // We need to determine valid moves and pick one
+      if (aiMove >= 0) {
+        const from = aiMove;
         const validMoves = TROIS_PIONS_ADJACENCY[from]
           .filter(to => state.board[to] === null);
         
         if (validMoves.length > 0) {
-          const to = validMoves[Math.floor(Math.random() * validMoves.length)];
-          newBoard = [...state.board];
+          // For simplicity, pick a valid move (could be improved with full move return)
+          const to = validMoves[0];
+          const newBoard = [...state.board];
           newBoard[to] = newBoard[from]!;
           newBoard[from] = null;
           
           const win = checkTroisPionsWin(newBoard, aiPlayer);
           
+          // Check for stalemate
+          let stalemate = false;
+          if (!win) {
+            stalemate = checkTroisPionsStalemate(newBoard, humanPlayer);
+          }
+          
+          const winner = win ? aiPlayer : (stalemate ? 'draw' : null);
+          
           setTroisPionsState({
             ...state,
             board: newBoard,
-            currentPlayer: 1,
+            currentPlayer: humanPlayer,
             selectedPosition: null,
-            status: win ? 'finished' : 'playing',
-            winner: win ? aiPlayer : null,
+            status: win || stalemate ? 'finished' : 'playing',
+            winner,
           });
           
-          if (win) setGameOverVisible(true);
+          if (win) {
+            setGameOverVisible(true);
+            incrementScore(aiPlayer);
+          } else if (stalemate) {
+            setGameOverVisible(true);
+          }
         }
       }
     }
@@ -347,9 +347,38 @@ export default function GamePlayScreen() {
         }
       }
 
-      // Check if human player has any valid moves (draw if blocked)
+      // Check if human player has any valid moves (winner if blocked)
       const humanMoves = getCheckersValidMoves(newBoard, humanPlayer, checkersRules, captureRequired);
-      const isDraw = humanMoves.length === 0 && opponentPieces > 0;
+      
+      // Count pieces for both players
+      let aiPieces = 0;
+      for (let r = 0; r < 8; r++) {
+        for (let c = 0; c < 8; c++) {
+          if (newBoard[r][c]?.player === aiPlayer) aiPieces++;
+        }
+      }
+      
+      // Determine winner: if one player has no legal moves but has pieces, the other wins
+      // If both cannot move, compare piece counts
+      let winner: Player | 'draw' | null = null;
+      if (opponentPieces === 0) {
+        winner = aiPlayer;
+      } else if (humanMoves.length === 0 && opponentPieces > 0) {
+        // Human has no legal moves but has pieces
+        // Check if AI also has no moves (edge case), otherwise AI wins
+        const aiMoves = getCheckersValidMoves(newBoard, aiPlayer, checkersRules, captureRequired);
+        if (aiMoves.length === 0) {
+          // Both have no moves - compare piece counts
+          if (aiPieces > opponentPieces) winner = aiPlayer;
+          else if (opponentPieces > aiPieces) winner = humanPlayer;
+          else winner = 'draw';
+        } else {
+          // AI can move - AI wins
+          winner = aiPlayer;
+        }
+      }
+
+      const isGameOver = winner !== null;
 
       setCheckersState({
         ...checkersState,
@@ -359,76 +388,13 @@ export default function GamePlayScreen() {
         validMoves: [],
         mustJump: false,
         jumpChain: [],
-        status: opponentPieces === 0 || isDraw ? 'finished' : 'playing',
-        winner: opponentPieces === 0 ? aiPlayer : isDraw ? null : null,
+        status: isGameOver ? 'finished' : 'playing',
+        winner,
       });
 
-      if (opponentPieces === 0 || isDraw) setGameOverVisible(true);
-    }
-  };
-
-  // Chess AI Move
-  const handleChessAIMove = () => {
-    const aiMove = getAIChessMove(
-      chessState.board,
-      difficulty,
-      aiPlayer,
-      chessState.enPassantTarget,
-      chessState.castlingRights
-    );
-
-    if (aiMove) {
-      const newBoard = chessState.board.map(row => [...row]) as typeof chessState.board;
-      const piece = newBoard[aiMove.from[0]][aiMove.from[1]];
-
-      if (piece) {
-        newBoard[aiMove.to[0]][aiMove.to[1]] = piece;
-        newBoard[aiMove.from[0]][aiMove.from[1]] = null;
-
-        // Handle en passant
-        let newEnPassant: [number, number] | null = null;
-        if (aiMove.enPassant) {
-          newBoard[aiMove.from[0]][aiMove.to[1]] = null;
-        }
-
-        // Handle pawn double move
-        if (piece.type === 'pawn' && Math.abs(aiMove.to[0] - aiMove.from[0]) === 2) {
-          newEnPassant = [(aiMove.from[0] + aiMove.to[0]) / 2, aiMove.from[1]];
-        }
-
-        // Handle promotion
-        if (aiMove.promoteTo) {
-          piece.type = aiMove.promoteTo;
-        }
-
-        // Handle castling
-        let newCastling = { ...chessState.castlingRights };
-        if (aiMove.castling) {
-          const rookFromCol = aiMove.castling === 'kingSide' ? 7 : 0;
-          const rookToCol = aiMove.castling === 'kingSide' ? 5 : 3;
-          const rook = newBoard[aiMove.from[0]][rookFromCol];
-          newBoard[aiMove.from[0]][rookToCol] = rook;
-          newBoard[aiMove.from[0]][rookFromCol] = null;
-          if (rook) rook.hasMoved = true;
-        }
-
-        if (piece.type === 'king' || piece.type === 'rook') {
-          piece.hasMoved = true;
-        }
-
-        // After AI move, switch to human player but don't show all valid moves
-        const isCheck = false; // Simplified - would need proper check detection
-        
-        setChessState({
-          ...chessState,
-          board: newBoard,
-          currentPlayer: humanPlayer,
-          selectedSquare: null,
-          validMoves: [],  // Don't show all moves - only show when piece selected
-          enPassantTarget: newEnPassant,
-          castlingRights: newCastling,
-          isCheck,
-        });
+      if (isGameOver) {
+        setGameOverVisible(true);
+        if (winner && winner !== 'draw') incrementScore(winner);
       }
     }
   };
@@ -438,10 +404,11 @@ export default function GamePlayScreen() {
     if (tttState.status !== 'playing' || isAITurn) return;
     if (tttState.board[index] !== null) return;
 
+    const currentPlayer = tttState.currentPlayer;
     const newBoard = [...tttState.board] as (Player | null)[];
-    newBoard[index] = 1;
+    newBoard[index] = currentPlayer;
 
-    const winner = checkTTTWin(newBoard, 1) ? 1 : null;
+    const winner = checkTTTWin(newBoard, currentPlayer) ? currentPlayer : null;
     const isDraw = !winner && checkTTTDraw(newBoard);
 
     let winningLine: number[] | null = null;
@@ -452,7 +419,7 @@ export default function GamePlayScreen() {
         [0, 4, 8], [2, 4, 6],
       ];
       for (const line of lines) {
-        if (line.every(i => newBoard[i] === 1)) {
+        if (line.every(i => newBoard[i] === currentPlayer)) {
           winningLine = line;
           break;
         }
@@ -461,7 +428,7 @@ export default function GamePlayScreen() {
 
     setTttState({
       board: newBoard,
-      currentPlayer: isPvC ? 2 : 2,
+      currentPlayer: currentPlayer === 1 ? 2 : 1,
       status: winner || isDraw ? 'finished' : 'playing',
       winner: winner || (isDraw ? 'draw' : null),
       winningLine,
@@ -469,6 +436,7 @@ export default function GamePlayScreen() {
 
     if (winner || isDraw) {
       setGameOverVisible(true);
+      if (winner) incrementScore(winner);
     }
   };
 
@@ -507,7 +475,10 @@ export default function GamePlayScreen() {
           winner,
         };
 
-        if (winner) setGameOverVisible(true);
+        if (winner) {
+          setGameOverVisible(true);
+          incrementScore(winner);
+        }
       } else {
         newState = {
           ...state,
@@ -535,17 +506,29 @@ export default function GamePlayScreen() {
           newBoard[state.selectedPosition] = null;
 
           const win = checkTroisPionsWin(newBoard, state.currentPlayer);
+          
+          // Check for stalemate if no win
+          let stalemate = false;
+          if (!win) {
+            const nextPlayer = state.currentPlayer === 1 ? 2 : 1;
+            stalemate = checkTroisPionsStalemate(newBoard, nextPlayer);
+          }
+
+          const winner = win ? state.currentPlayer : (stalemate ? 'draw' : null);
 
           newState = {
             ...state,
             board: newBoard,
             selectedPosition: null,
             currentPlayer: state.currentPlayer === 1 ? 2 : 1,
-            status: win ? 'finished' : 'playing',
-            winner: win ? state.currentPlayer : null,
+            status: win || stalemate ? 'finished' : 'playing',
+            winner,
           };
 
-          if (win) setGameOverVisible(true);
+          if (win || stalemate) {
+            setGameOverVisible(true);
+            if (win) incrementScore(state.currentPlayer);
+          }
         }
       } else {
         // Deselect
@@ -565,9 +548,23 @@ export default function GamePlayScreen() {
 
     const piece = checkersState.board[row][col];
     const isSelected = checkersState.selectedSquare?.[0] === row && checkersState.selectedSquare?.[1] === col;
+    const isInJumpChain = checkersState.mustJump && checkersState.selectedSquare;
+
+    // If in a jump chain and clicking on the current piece position, end turn
+    if (isInJumpChain && isSelected) {
+      setCheckersState({
+        ...checkersState,
+        selectedSquare: null,
+        validMoves: [],
+        currentPlayer: checkersState.currentPlayer === 1 ? 2 : 1,
+        mustJump: false,
+        jumpChain: [],
+      });
+      return;
+    }
 
     if (isSelected) {
-      // Deselect
+      // Deselect (only if not in jump chain)
       setCheckersState({
         ...checkersState,
         selectedSquare: null,
@@ -611,27 +608,22 @@ export default function GamePlayScreen() {
         const fromCol = move.to[1];
         additionalJumps = getJumpsForPiece(newBoard, fromRow, fromCol, movedPiece.player, checkersRules);
         
-        // If there are more jumps and captures are mandatory (or player chooses to continue)
+        // If there are more jumps, player can continue or end turn
         if (additionalJumps.length > 0) {
-          if (captureRequired) {
-            // Must continue jumping
-            mustContinueJumping = true;
-          } else {
-            // Optional - show both options (continue or pass turn)
-            mustContinueJumping = false;
-          }
+          // Show the additional jumps and let player choose to continue or end
+          mustContinueJumping = false;
         }
       }
 
-      // If must continue jumping, don't switch turns
-      if (mustContinueJumping && additionalJumps.length > 0) {
+      // If there are more jumps available, let player choose to continue or end turn
+      if (additionalJumps.length > 0) {
         setCheckersState({
           ...checkersState,
           board: newBoard,
           currentPlayer: checkersState.currentPlayer, // Stay with same player
           selectedSquare: [move.to[0], move.to[1]],
           validMoves: additionalJumps,
-          mustJump: true,
+          mustJump: true, // Track that player is in a jump chain
           jumpChain: [...checkersState.jumpChain, move.to],
           status: 'playing',
           winner: null,
@@ -660,11 +652,32 @@ export default function GamePlayScreen() {
         winner: opponentPieces === 0 ? checkersState.currentPlayer : null,
       });
 
-      if (opponentPieces === 0) setGameOverVisible(true);
+      if (opponentPieces === 0) {
+        setGameOverVisible(true);
+        incrementScore(checkersState.currentPlayer);
+      }
       
       // Check if opponent has any valid moves (draw if blocked)
       const opponentMoves = getCheckersValidMoves(newBoard, opponentPlayer, checkersRules, captureRequired);
       if (opponentMoves.length === 0 && opponentPieces > 0) {
+        // Count pieces for both players
+        let currentPlayerPieces = 0;
+        for (let r = 0; r < 8; r++) {
+          for (let c = 0; c < 8; c++) {
+            if (newBoard[r][c]?.player === checkersState.currentPlayer) currentPlayerPieces++;
+          }
+        }
+        
+        // Determine winner: more pieces wins, equal = draw
+        let winner: Player | 'draw' | null = null;
+        if (currentPlayerPieces > opponentPieces) {
+          winner = checkersState.currentPlayer;
+        } else if (opponentPieces > currentPlayerPieces) {
+          winner = opponentPlayer;
+        } else {
+          winner = 'draw';
+        }
+        
         setCheckersState({
           ...checkersState,
           board: newBoard,
@@ -674,9 +687,10 @@ export default function GamePlayScreen() {
           mustJump: false,
           jumpChain: [],
           status: 'finished',
-          winner: null,
+          winner,
         });
         setGameOverVisible(true);
+        if (winner && winner !== 'draw') incrementScore(winner);
         return;
       }
       
@@ -692,68 +706,6 @@ export default function GamePlayScreen() {
         ...checkersState,
         selectedSquare: [row, col],
         validMoves: pieceMoves,
-      });
-    }
-  };
-
-  // Chess Square Press
-  const handleChessPress = (row: number, col: number) => {
-    if (chessState.status !== 'playing' || isAITurn) return;
-
-    const piece = chessState.board[row][col];
-    const isSelected = chessState.selectedSquare?.[0] === row && chessState.selectedSquare?.[1] === col;
-
-    if (isSelected) {
-      setChessState({
-        ...chessState,
-        selectedSquare: null,
-        validMoves: [],
-      });
-      return;
-    }
-
-    // Check if clicking on a valid move
-    const move = chessState.validMoves.find(m => m.to[0] === row && m.to[1] === col);
-    if (move && chessState.selectedSquare) {
-      // Execute move
-      const newBoard = chessState.board.map(r => [...r]) as typeof chessState.board;
-      const movingPiece = newBoard[chessState.selectedSquare[0]][chessState.selectedSquare[1]];
-
-      if (movingPiece) {
-        newBoard[row][col] = movingPiece;
-        newBoard[chessState.selectedSquare[0]][chessState.selectedSquare[1]] = null;
-
-        // Handle promotion
-        if (move.promoteTo) {
-          movingPiece.type = move.promoteTo;
-        }
-
-        const newValidMoves = getChessValidMoves(newBoard, humanPlayer, null, chessState.castlingRights);
-
-        setChessState({
-          ...chessState,
-          board: newBoard,
-          selectedSquare: null,
-          validMoves: [],  // Clear valid moves after move
-          currentPlayer: aiPlayer,
-        });
-      }
-      return;
-    }
-
-    // Select own piece
-    if (piece?.player === chessState.currentPlayer) {
-      const validMoves = getChessValidMoves(
-        chessState.board,
-        chessState.currentPlayer,
-        chessState.enPassantTarget,
-        chessState.castlingRights
-      ).filter(m => m.from[0] === row && m.from[1] === col);
-
-      setChessState({
-        ...chessState,
-        selectedSquare: [row, col],
-        validMoves: validMoves,
       });
     }
   };
@@ -792,18 +744,6 @@ export default function GamePlayScreen() {
             validMoves={checkersState.validMoves}
             onSquarePress={handleCheckersPress}
             disabled={isAITurn || checkersState.status !== 'playing'}
-            playerSide={isPvC ? humanPlayer : humanPlayer}
-          />
-        );
-      case 'chess':
-        return (
-          <ChessBoard
-            board={chessState.board}
-            selectedSquare={chessState.selectedSquare}
-            validMoves={chessState.validMoves}
-            onSquarePress={handleChessPress}
-            disabled={isAITurn || chessState.status !== 'playing'}
-            isCheck={chessState.isCheck}
             playerSide={isPvC ? humanPlayer : humanPlayer}
           />
         );

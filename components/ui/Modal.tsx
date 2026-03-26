@@ -10,9 +10,10 @@ import {
 import Animated, {
   useSharedValue,
   useAnimatedStyle,
-  withSpring,
   withTiming,
+  FadeIn,
 } from 'react-native-reanimated';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../constants/theme';
 
 interface ModalProps {
@@ -23,18 +24,22 @@ interface ModalProps {
 }
 
 export function Modal({ visible, onClose, title, children }: ModalProps) {
-  const translateY = useSharedValue(300);
+  const translateY = useSharedValue(50);
+  const opacity = useSharedValue(0);
 
   React.useEffect(() => {
     if (visible) {
-      translateY.value = withSpring(0, { damping: 15 });
+      translateY.value = withTiming(0, { duration: 200 });
+      opacity.value = withTiming(1, { duration: 200 });
     } else {
-      translateY.value = withTiming(300, { duration: 200 });
+      translateY.value = withTiming(50, { duration: 150 });
+      opacity.value = withTiming(0, { duration: 100 });
     }
   }, [visible]);
 
   const animatedStyle = useAnimatedStyle(() => ({
     transform: [{ translateY: translateY.value }],
+    opacity: opacity.value,
   }));
 
   return (
@@ -48,6 +53,7 @@ export function Modal({ visible, onClose, title, children }: ModalProps) {
         <View style={styles.overlay}>
           <TouchableWithoutFeedback>
             <Animated.View style={[styles.container, animatedStyle]}>
+              <View style={styles.handle} />
               <Text style={styles.title}>{title}</Text>
               <View style={styles.content}>{children}</View>
             </Animated.View>
@@ -76,12 +82,15 @@ export function MenuModal({
   return (
     <Modal visible={visible} onClose={onClose} title="PAUSED">
       <TouchableOpacity style={styles.menuButton} onPress={onResume}>
+        <MaterialCommunityIcons name="play" size={24} color={COLORS.textPrimary} />
         <Text style={styles.menuButtonText}>RESUME</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.menuButton} onPress={onRestart}>
+        <MaterialCommunityIcons name="restart" size={24} color={COLORS.textPrimary} />
         <Text style={styles.menuButtonText}>RESTART</Text>
       </TouchableOpacity>
       <TouchableOpacity style={styles.menuButton} onPress={onGoHome}>
+        <MaterialCommunityIcons name="home" size={24} color={COLORS.textPrimary} />
         <Text style={styles.menuButtonText}>GO TO HOME</Text>
       </TouchableOpacity>
     </Modal>
@@ -104,27 +113,44 @@ export function GameOverModal({
   onGoHome,
 }: GameOverModalProps) {
   return (
-    <Modal visible={visible} onClose={() => {}} title="">
-      <View style={styles.gameOverContent}>
-        <Text style={styles.trophy}>{isDraw ? '🤝' : '🏆'}</Text>
-        <Text style={styles.winnerText}>
-          {isDraw ? "It's a Draw!" : `${winner} Wins!`}
-        </Text>
-        <TouchableOpacity style={styles.primaryButton} onPress={onPlayAgain}>
-          <Text style={styles.primaryButtonText}>PLAY AGAIN</Text>
-        </TouchableOpacity>
-        <TouchableOpacity style={styles.secondaryButton} onPress={onGoHome}>
-          <Text style={styles.secondaryButtonText}>GO TO HOME</Text>
-        </TouchableOpacity>
-      </View>
-    </Modal>
+    <RNModal
+      visible={visible}
+      transparent
+      animationType="fade"
+      onRequestClose={() => {}}
+    >
+      <Animated.View 
+        entering={FadeIn.duration(200)}
+        style={styles.overlay}
+      >
+        <View style={styles.gameOverContainer}>
+          <Text style={styles.trophy}>{isDraw ? '🤝' : '🏆'}</Text>
+          
+          <Text style={styles.winnerText}>
+            {isDraw ? "It's a Draw!" : `${winner} Wins!`}
+          </Text>
+          
+          <View style={styles.gameOverButtons}>
+            <TouchableOpacity style={styles.primaryButton} onPress={onPlayAgain}>
+              <MaterialCommunityIcons name="replay" size={20} color={COLORS.textPrimary} />
+              <Text style={styles.primaryButtonText}>PLAY AGAIN</Text>
+            </TouchableOpacity>
+            
+            <TouchableOpacity style={styles.secondaryButton} onPress={onGoHome}>
+              <MaterialCommunityIcons name="home" size={20} color={COLORS.accent} />
+              <Text style={styles.secondaryButtonText}>GO TO HOME</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Animated.View>
+    </RNModal>
   );
 }
 
 const styles = StyleSheet.create({
   overlay: {
     flex: 1,
-    backgroundColor: 'rgba(0, 0, 0, 0.7)',
+    backgroundColor: 'rgba(0, 0, 0, 0.8)',
     justifyContent: 'center',
     alignItems: 'center',
   },
@@ -132,18 +158,28 @@ const styles = StyleSheet.create({
     backgroundColor: COLORS.surface,
     borderRadius: BORDER_RADIUS.lg,
     padding: SPACING.lg,
-    width: '80%',
-    maxWidth: 320,
+    width: '85%',
+    maxWidth: 340,
+    alignItems: 'center',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    backgroundColor: COLORS.textSecondary,
+    borderRadius: BORDER_RADIUS.full,
+    marginBottom: SPACING.md,
   },
   title: {
     fontSize: FONT_SIZES.xl,
     fontWeight: 'bold',
     color: COLORS.textPrimary,
     textAlign: 'center',
-    marginBottom: SPACING.md,
+    marginBottom: SPACING.lg,
+    letterSpacing: 2,
   },
   content: {
     alignItems: 'center',
+    width: '100%',
   },
   menuButton: {
     backgroundColor: COLORS.primary,
@@ -152,6 +188,10 @@ const styles = StyleSheet.create({
     borderRadius: BORDER_RADIUS.md,
     marginVertical: SPACING.sm,
     width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
   },
   menuButtonText: {
     color: COLORS.textPrimary,
@@ -159,28 +199,40 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     textAlign: 'center',
   },
-  gameOverContent: {
+  gameOverContainer: {
+    backgroundColor: COLORS.surface,
+    borderRadius: BORDER_RADIUS.lg,
+    padding: SPACING.xl,
+    width: '85%',
+    maxWidth: 340,
     alignItems: 'center',
-    width: '100%',
+    borderWidth: 2,
+    borderColor: COLORS.accent,
   },
   trophy: {
-    fontSize: 64,
+    fontSize: 80,
     marginBottom: SPACING.md,
   },
   winnerText: {
-    fontSize: FONT_SIZES.xl,
+    fontSize: FONT_SIZES.xxl,
     fontWeight: 'bold',
     color: COLORS.accent,
-    marginBottom: SPACING.lg,
+    marginBottom: SPACING.xl,
     textAlign: 'center',
+  },
+  gameOverButtons: {
+    width: '100%',
+    gap: SPACING.sm,
   },
   primaryButton: {
     backgroundColor: COLORS.accent,
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.xl,
     borderRadius: BORDER_RADIUS.md,
-    marginVertical: SPACING.sm,
-    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
   },
   primaryButtonText: {
     color: COLORS.textPrimary,
@@ -195,8 +247,10 @@ const styles = StyleSheet.create({
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.xl,
     borderRadius: BORDER_RADIUS.md,
-    marginVertical: SPACING.sm,
-    width: '100%',
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: SPACING.sm,
   },
   secondaryButtonText: {
     color: COLORS.accent,

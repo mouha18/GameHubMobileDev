@@ -34,14 +34,6 @@ export const GAMES: GameMeta[] = [
     iconFamily: 'MaterialCommunityIcons',
     category: 'Strategy',
   },
-  {
-    id: 'chess',
-    name: 'Chess',
-    description: 'The ultimate strategy game. Checkmate your opponent\'s king.',
-    icon: 'chess-king',
-    iconFamily: 'MaterialCommunityIcons',
-    category: 'Strategy',
-  },
 ];
 
 export const getGameMeta = (gameId: GameId): GameMeta | undefined => {

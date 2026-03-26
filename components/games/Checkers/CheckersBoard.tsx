@@ -29,19 +29,31 @@ export function CheckersBoard({
   const rotated = playerSide === 2;
 
   const isSelected = (row: number, col: number) => {
-    return selectedSquare?.[0] === row && selectedSquare?.[1] === col;
+    // When board is rotated, selectedSquare contains actual coordinates
+    // We need to check against the visual coordinates
+    const selectedRow = selectedSquare ? (rotated ? 7 - selectedSquare[0] : selectedSquare[0]) : -1;
+    const selectedCol = selectedSquare ? (rotated ? 7 - selectedSquare[1] : selectedSquare[1]) : -1;
+    return selectedRow === row && selectedCol === col;
   };
 
   const isValidMove = (row: number, col: number) => {
-    return validMoves.some(
-      (move) => move.to[0] === row && move.to[1] === col
-    );
+    // When board is rotated, validMoves contain actual coordinates
+    // We need to check against the visual coordinates
+    return validMoves.some((move) => {
+      const moveRow = rotated ? 7 - move.to[0] : move.to[0];
+      const moveCol = rotated ? 7 - move.to[1] : move.to[1];
+      return moveRow === row && moveCol === col;
+    });
   };
 
   const getValidMoveCapture = (row: number, col: number) => {
-    const move = validMoves.find(
-      (m) => m.to[0] === row && m.to[1] === col && m.captured
-    );
+    // When board is rotated, validMoves contain actual coordinates
+    // We need to check against the visual coordinates
+    const move = validMoves.find((m) => {
+      const moveRow = rotated ? 7 - m.to[0] : m.to[0];
+      const moveCol = rotated ? 7 - m.to[1] : m.to[1];
+      return moveRow === row && moveCol === col;
+    });
     return move?.captured;
   };
 
@@ -68,7 +80,7 @@ export function CheckersBoard({
           isSelectedSquare && styles.selectedSquare,
           isValidSquare && styles.validMoveSquare,
         ]}
-        onPress={() => !disabled && onSquarePress(row, col)}
+        onPress={() => !disabled && onSquarePress(actualRow, actualCol)}
         disabled={disabled}
       >
         {piece && (

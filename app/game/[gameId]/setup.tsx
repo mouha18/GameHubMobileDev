@@ -114,7 +114,7 @@ export default function GameSetupScreen() {
 
         {mode === 'pvc' && (
           <View style={styles.section}>
-            <Text style={styles.sectionTitle}>Your Side</Text>
+            <Text style={styles.sectionTitle}>Play As</Text>
             <View style={styles.difficultyButtons}>
               <TouchableOpacity
                 style={[
@@ -129,7 +129,7 @@ export default function GameSetupScreen() {
                     playerSide === 1 && styles.difficultyButtonTextActive,
                   ]}
                 >
-                  White
+                  Player 1 First
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -145,7 +145,7 @@ export default function GameSetupScreen() {
                     playerSide === 2 && styles.difficultyButtonTextActive,
                   ]}
                 >
-                  Black
+                  Player 2 First
                 </Text>
               </TouchableOpacity>
             </View>
@@ -176,6 +176,13 @@ export default function GameSetupScreen() {
                 </TouchableOpacity>
               ))}
             </View>
+            <TouchableOpacity
+              style={styles.backButton}
+              onPress={() => setMode('pvp')}
+            >
+              <MaterialCommunityIcons name="arrow-left" size={20} color={COLORS.textPrimary} />
+              <Text style={styles.backButtonText}>Back to Mode Selection</Text>
+            </TouchableOpacity>
           </View>
         )}
 
@@ -382,6 +389,18 @@ const styles = StyleSheet.create({
   startButton: {
     marginTop: 'auto',
     paddingBottom: SPACING.lg,
+  },
+  backButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: SPACING.md,
+    marginTop: SPACING.lg,
+    gap: SPACING.sm,
+  },
+  backButtonText: {
+    fontSize: FONT_SIZES.md,
+    color: COLORS.textSecondary,
   },
   errorText: {
     fontSize: FONT_SIZES.lg,

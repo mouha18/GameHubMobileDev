@@ -7,7 +7,7 @@
 **Tech Stack:** React Native, Expo Go (SDK 51+), TypeScript  
 **Context:** Mobile Development Midterm Project — DAUST
 
-Game Hub is a mobile application that lets users play 4 classic board games in a single app. Each game supports two modes: Player vs Player (local) and Player vs Computer (with 3 AI difficulty levels).
+Game Hub is a mobile application that lets users play 3 classic board games in a single app. Each game supports two modes: Player vs Player (local) and Player vs Computer (with 3 AI difficulty levels).
 
 ---
 
@@ -18,7 +18,6 @@ Game Hub is a mobile application that lets users play 4 classic board games in a
 | 1 | 3 Pions | Senegalese strategy | 3×3 grid (9 positions) |
 | 2 | Tic Tac Toe | Classic | 3×3 grid |
 | 3 | Checkers | Classic strategy | 8×8 board |
-| 4 | Chess | Classic strategy | 8×8 board |
 
 ---
 

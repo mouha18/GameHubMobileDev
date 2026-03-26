@@ -7,6 +7,11 @@ import {
   TextStyle,
   ActivityIndicator,
 } from 'react-native';
+import Animated, {
+  useSharedValue,
+  useAnimatedStyle,
+  withTiming,
+} from 'react-native-reanimated';
 import { COLORS, FONT_SIZES, SPACING, BORDER_RADIUS } from '../../constants/theme';
 
 interface ButtonProps {
@@ -19,6 +24,8 @@ interface ButtonProps {
   style?: ViewStyle;
 }
 
+const AnimatedTouchable = Animated.createAnimatedComponent(TouchableOpacity);
+
 export function Button({
   title,
   onPress,
@@ -28,6 +35,20 @@ export function Button({
   loading = false,
   style,
 }: ButtonProps) {
+  const scale = useSharedValue(1);
+
+  const animatedStyle = useAnimatedStyle(() => ({
+    transform: [{ scale: scale.value }],
+  }));
+
+  const handlePressIn = () => {
+    scale.value = withTiming(0.98, { duration: 100 });
+  };
+
+  const handlePressOut = () => {
+    scale.value = withTiming(1, { duration: 150 });
+  };
+
   const buttonStyles = [
     styles.base,
     styles[variant],
@@ -44,11 +65,13 @@ export function Button({
   ] as TextStyle[];
 
   return (
-    <TouchableOpacity
-      style={buttonStyles}
+    <AnimatedTouchable
+      style={[buttonStyles, animatedStyle]}
       onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
       disabled={disabled || loading}
-      activeOpacity={0.7}
+      activeOpacity={1}
     >
       {loading ? (
         <ActivityIndicator
@@ -58,7 +81,7 @@ export function Button({
       ) : (
         <Text style={textStyles}>{title}</Text>
       )}
-    </TouchableOpacity>
+    </AnimatedTouchable>
   );
 }
 
@@ -87,7 +110,7 @@ const styles = StyleSheet.create({
   mediumSize: {
     paddingVertical: SPACING.md,
     paddingHorizontal: SPACING.lg,
-    minWidth: 120,
+    minWidth: 140,
   },
   largeSize: {
     paddingVertical: SPACING.lg,

@@ -43,23 +43,3 @@ export const BORDER_RADIUS = {
   lg: 20,
   full: 9999,
 };
-
-// Chess Unicode pieces
-export const CHESS_PIECES = {
-  white: {
-    king: '♔',
-    queen: '♕',
-    rook: '♖',
-    bishop: '♗',
-    knight: '♘',
-    pawn: '♙',
-  },
-  black: {
-    king: '♚',
-    queen: '♛',
-    rook: '♜',
-    bishop: '♝',
-    knight: '♞',
-    pawn: '♟',
-  },
-};

@@ -15,6 +15,13 @@ export const useGameStore = create<GameStore>((set) => ({
         [player]: { ...state.players[player], name },
       },
     })),
+  incrementScore: (player: Player) =>
+    set((state) => ({
+      players: {
+        ...state.players,
+        [player]: { ...state.players[player], score: state.players[player].score + 1 },
+      },
+    })),
   resetPlayers: () =>
     set({
       players: {

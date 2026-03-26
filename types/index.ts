@@ -1,5 +1,5 @@
 // Game ID Types
-export type GameId = 'trois-pions' | 'tic-tac-toe' | 'checkers' | 'chess';
+export type GameId = 'trois-pions' | 'tic-tac-toe' | 'checkers';
 export type GameMode = 'pvp' | 'pvc';
 export type Difficulty = 'easy' | 'medium' | 'hard';
 export type Player = 1 | 2;
@@ -72,42 +72,6 @@ export interface CheckersState {
   mustJump: boolean;
   jumpChain: [number, number][];
   status: GameStatus;
-  winner: Player | null;
-}
-
-// ==================== CHESS ====================
-export type ChessPieceType = 'king' | 'queen' | 'rook' | 'bishop' | 'knight' | 'pawn';
-
-export interface ChessPiece {
-  player: Player;
-  type: ChessPieceType;
-  hasMoved?: boolean;
-}
-
-export type ChessBoardState = (ChessPiece | null)[][];
-
-export interface CastlingRights {
-  1: { kingSide: boolean; queenSide: boolean };
-  2: { kingSide: boolean; queenSide: boolean };
-}
-
-export interface ChessMove {
-  from: [number, number];
-  to: [number, number];
-  promoteTo?: ChessPieceType;
-  castling?: 'kingSide' | 'queenSide';
-  enPassant?: boolean;
-}
-
-export interface ChessState {
-  board: ChessBoardState;
-  currentPlayer: Player;
-  selectedSquare: [number, number] | null;
-  validMoves: ChessMove[];
-  enPassantTarget: [number, number] | null;
-  castlingRights: CastlingRights;
-  isCheck: boolean;
-  status: GameStatus;
   winner: Player | 'draw' | null;
 }
 
@@ -117,5 +81,6 @@ export interface GameStore {
   players: { 1: PlayerState; 2: PlayerState };
   setConfig: (config: GameConfig) => void;
   setPlayerName: (player: Player, name: string) => void;
+  incrementScore: (player: Player) => void;
   resetPlayers: () => void;
 }

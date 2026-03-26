@@ -1,5 +1,6 @@
 import React from 'react';
 import { View, Text, StyleSheet } from 'react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import Animated, {
   useAnimatedStyle,
   withTiming,
@@ -25,10 +26,9 @@ export function TurnIndicator({
 
   React.useEffect(() => {
     opacity.value = 0;
-    const timeout = setTimeout(() => {
+    setTimeout(() => {
       opacity.value = withTiming(1, { duration: 200 });
     }, 50);
-    return () => clearTimeout(timeout);
   }, [currentPlayer]);
 
   const animatedStyle = useAnimatedStyle(() => ({
@@ -43,7 +43,15 @@ export function TurnIndicator({
         animatedStyle,
       ]}
     >
-      <Text style={styles.text}>{playerName}'s Turn</Text>
+      <View style={styles.inner}>
+        <MaterialCommunityIcons
+          name="gamepad-variant"
+          size={16}
+          color={COLORS.background}
+          style={styles.icon}
+        />
+        <Text style={styles.text}>{playerName}'s Turn</Text>
+      </View>
     </Animated.View>
   );
 }
@@ -51,13 +59,21 @@ export function TurnIndicator({
 const styles = StyleSheet.create({
   container: {
     paddingVertical: SPACING.sm,
-    paddingHorizontal: SPACING.md,
+    paddingHorizontal: SPACING.lg,
     borderRadius: BORDER_RADIUS.full,
     alignSelf: 'center',
     marginVertical: SPACING.sm,
   },
+  inner: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: SPACING.xs,
+  },
+  icon: {
+    marginRight: 2,
+  },
   text: {
-    fontSize: FONT_SIZES.sm,
+    fontSize: FONT_SIZES.md,
     fontWeight: 'bold',
     color: COLORS.background,
   },
